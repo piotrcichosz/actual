@@ -1,43 +1,24 @@
-import * as argon2 from 'argon2';
-import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 
 import { clearExpiredSessions, getAccountDb } from '#account-db';
 import { config } from '#load-config';
+import * as passwordHash from '#password-hash';
 import { TOKEN_EXPIRATION_NEVER } from '#util/validate-user';
 
-// https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
-const ARGON2_OPTIONS = {
-  type: argon2.argon2id,
-  memoryCost: 47104,
-  timeCost: 1,
-  parallelism: 1,
-};
-
 export function isValidPassword(password) {
-  return password != null && password !== '';
+  return typeof password === 'string' && password.length > 0;
 }
 
 export function hashPassword(password) {
-  return argon2.hash(password, ARGON2_OPTIONS);
+  if (!isValidPassword(password)) {
+    throw new TypeError('invalid-password');
+  }
+  return passwordHash.hashPassword(password);
 }
 
 export async function verifyPassword(password, hash) {
-  if (typeof hash !== 'string') return false;
-
-  if (hash.startsWith('$argon2')) {
-    try {
-      return await argon2.verify(hash, password);
-    } catch {
-      return false;
-    }
-  }
-
-  try {
-    return await bcrypt.compare(password, hash);
-  } catch {
-    return false;
-  }
+  if (!isValidPassword(password)) return false;
+  return passwordHash.verifyPassword(password, hash);
 }
 
 function isLegacyHash(hash) {
@@ -88,87 +69,106 @@ export async function loginWithPassword(password) {
     return { error: 'invalid-password' };
   }
 
-  if (isLegacyHash(passwordHash)) {
-    const rehashed = await hashPassword(password);
-    accountDb.mutate(
-      "UPDATE auth SET extra_data = ? WHERE method = 'password' AND extra_data = ?",
-      [rehashed, passwordHash],
+  const rehashed = isLegacyHash(passwordHash)
+    ? await hashPassword(password)
+    : null;
+
+  return accountDb.transaction(() => {
+    // Password verification yields to other requests. A reset must also
+    // invalidate logins that were still verifying the previous password.
+    const currentAuth = accountDb.first(
+      "SELECT extra_data FROM auth WHERE method = 'password'",
     );
-  }
-
-  const sessionRow = accountDb.first(
-    'SELECT * FROM sessions WHERE auth_method = ?',
-    ['password'],
-  );
-
-  const token = sessionRow ? sessionRow.token : uuidv4();
-
-  const { totalOfUsers } = accountDb.first(
-    'SELECT count(*) as totalOfUsers FROM users',
-  );
-  let userId = null;
-  if (totalOfUsers === 0) {
-    userId = uuidv4();
-    accountDb.mutate(
-      'INSERT INTO users (id, user_name, display_name, enabled, owner, role) VALUES (?, ?, ?, 1, 1, ?)',
-      [userId, '', '', 'ADMIN'],
-    );
-  } else {
-    const { id: userIdFromDb } = accountDb.first(
-      'SELECT id FROM users WHERE user_name = ?',
-      [''],
-    );
-
-    userId = userIdFromDb;
-
-    if (!userId) {
-      return { error: 'user-not-found' };
+    if (currentAuth?.extra_data !== passwordHash) {
+      return { error: 'invalid-password' };
     }
-  }
+    if (rehashed) {
+      accountDb.mutate(
+        "UPDATE auth SET extra_data = ? WHERE method = 'password'",
+        [rehashed],
+      );
+    }
 
-  let expiration = TOKEN_EXPIRATION_NEVER;
-  if (
-    config.get('token_expiration') !== 'never' &&
-    config.get('token_expiration') !== 'openid-provider' &&
-    typeof config.get('token_expiration') === 'number'
-  ) {
-    expiration =
-      Math.floor(Date.now() / 1000) + config.get('token_expiration') * 60;
-  }
+    const { totalOfUsers } = accountDb.first(
+      'SELECT count(*) as totalOfUsers FROM users',
+    );
+    let userId = null;
+    if (totalOfUsers === 0) {
+      userId = uuidv4();
+      accountDb.mutate(
+        'INSERT INTO users (id, user_name, display_name, enabled, owner, role) VALUES (?, ?, ?, 1, 1, ?)',
+        [userId, '', '', 'ADMIN'],
+      );
+    } else {
+      const { id: userIdFromDb } = accountDb.first(
+        'SELECT id FROM users WHERE user_name = ?',
+        [''],
+      );
 
-  if (!sessionRow) {
+      userId = userIdFromDb;
+
+      if (!userId) {
+        return { error: 'user-not-found' };
+      }
+    }
+
+    let expiration = TOKEN_EXPIRATION_NEVER;
+    if (
+      config.get('token_expiration') !== 'never' &&
+      config.get('token_expiration') !== 'openid-provider' &&
+      typeof config.get('token_expiration') === 'number'
+    ) {
+      expiration =
+        Math.floor(Date.now() / 1000) + config.get('token_expiration') * 60;
+    }
+    const token = uuidv4();
     accountDb.mutate(
       'INSERT INTO sessions (token, expires_at, user_id, auth_method) VALUES (?, ?, ?, ?)',
       [token, expiration, userId, 'password'],
     );
-  } else {
-    accountDb.mutate(
-      'UPDATE sessions SET user_id = ?, expires_at = ? WHERE token = ?',
-      [userId, expiration, token],
-    );
-  }
-
-  clearExpiredSessions();
-
-  return { token };
+    clearExpiredSessions();
+    return { token };
+  });
 }
 
-export async function changePassword(newPassword) {
+export async function changePassword(newPassword, currentPassword) {
   const accountDb = getAccountDb();
 
   if (!isValidPassword(newPassword)) {
     return { error: 'invalid-password' };
   }
 
-  const hashed = await hashPassword(newPassword);
-  const result = accountDb.mutate(
-    "UPDATE auth SET extra_data = ? WHERE method = 'password'",
-    [hashed],
+  const auth = accountDb.first(
+    "SELECT extra_data FROM auth WHERE method = 'password'",
   );
-  if (result.changes === 0) {
+  if (!auth) {
     return { error: 'no-password-method' };
   }
-  return {};
+  if (
+    currentPassword !== undefined &&
+    !(await verifyPassword(currentPassword, auth.extra_data))
+  ) {
+    return { error: 'invalid-current-password' };
+  }
+  const hashed = await hashPassword(newPassword);
+  return accountDb.transaction(() => {
+    if (
+      currentPassword !== undefined &&
+      accountDb.first("SELECT extra_data FROM auth WHERE method = 'password'")
+        ?.extra_data !== auth.extra_data
+    ) {
+      return { error: 'invalid-current-password' };
+    }
+    const result = accountDb.mutate(
+      "UPDATE auth SET extra_data = ? WHERE method = 'password'",
+      [hashed],
+    );
+    if (result.changes === 0) {
+      return { error: 'no-password-method' };
+    }
+    accountDb.mutate("DELETE FROM sessions WHERE auth_method = 'password'");
+    return {};
+  });
 }
 
 export async function checkPassword(password) {

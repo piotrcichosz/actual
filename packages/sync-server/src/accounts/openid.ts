@@ -1,4 +1,5 @@
 // @ts-strict-ignore
+import createDebug from 'debug';
 import { custom, generators, Issuer } from 'openid-client';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -24,7 +25,32 @@ export type ConfigParameter = {
   server_hostname?: string;
 };
 
+const debugSensitive = createDebug('actual-sensitive:openid');
+
 export async function bootstrapOpenId(configParameter: ConfigParameter) {
+  const prepared = await prepareOpenId(configParameter);
+  if ('error' in prepared) {
+    return prepared;
+  }
+
+  try {
+    saveOpenIdConfig(prepared.config);
+  } catch (error) {
+    console.error('Error updating auth table');
+    debugSensitive('Error updating auth table: %O', error);
+    return { error: 'database-error' };
+  }
+
+  return {};
+}
+
+/**
+ * Validates the OpenID config and checks the provider is reachable. Does not
+ * touch the database, so callers can await it before opening a transaction.
+ */
+export async function prepareOpenId(
+  configParameter: ConfigParameter,
+): Promise<{ error: string } | { config: ConfigParameter }> {
   if (!('issuer' in configParameter) && !('discoveryURL' in configParameter)) {
     return { error: 'missing-issuer-or-discoveryURL' };
   }
@@ -51,27 +77,26 @@ export async function bootstrapOpenId(configParameter: ConfigParameter) {
     }
 
     await setupOpenIdClient(configParameter);
-  } catch (err) {
-    console.error('Error setting up OpenID client:', err);
+  } catch (error) {
+    console.error('Error setting up OpenID client');
+    debugSensitive('Error setting up OpenID client: %O', error);
     return { error: 'configuration-error' };
   }
 
-  const accountDb = getAccountDb();
-  try {
-    accountDb.transaction(() => {
-      accountDb.mutate('DELETE FROM auth WHERE method = ?', ['openid']);
-      accountDb.mutate('UPDATE auth SET active = 0');
-      accountDb.mutate(
-        "INSERT INTO auth (method, display_name, extra_data, active) VALUES ('openid', 'OpenID', ?, 1)",
-        [JSON.stringify(configParameter)],
-      );
-    });
-  } catch (err) {
-    console.error('Error updating auth table:', err);
-    return { error: 'database-error' };
-  }
+  return { config: configParameter };
+}
 
-  return {};
+/** Stores a config returned by `prepareOpenId` as the active login method. */
+export function saveOpenIdConfig(configParameter: ConfigParameter) {
+  const accountDb = getAccountDb();
+  accountDb.transaction(() => {
+    accountDb.mutate('DELETE FROM auth WHERE method = ?', ['openid']);
+    accountDb.mutate('UPDATE auth SET active = 0');
+    accountDb.mutate(
+      "INSERT INTO auth (method, display_name, extra_data, active) VALUES ('openid', 'OpenID', ?, 1)",
+      [JSON.stringify(configParameter)],
+    );
+  });
 }
 
 async function setupOpenIdClient(configParameter) {
@@ -135,16 +160,18 @@ export async function loginWithOpenIdSetup(
 
   try {
     config = JSON.parse(config['extra_data']);
-  } catch (err) {
-    console.error('Error parsing OpenID configuration:', err);
+  } catch (error) {
+    console.error('Error parsing OpenID configuration');
+    debugSensitive('Error parsing OpenID configuration: %O', error);
     return { error: 'openid-setup-failed' };
   }
 
   let client;
   try {
     client = await setupOpenIdClient(config);
-  } catch (err) {
-    console.error('Error setting up OpenID client:', err);
+  } catch (error) {
+    console.error('Error setting up OpenID client');
+    debugSensitive('Error setting up OpenID client: %O', error);
     return { error: 'openid-setup-failed' };
   }
 
@@ -192,15 +219,17 @@ export async function loginWithOpenIdFinalize(body) {
   }
   try {
     configFromDb = JSON.parse(configFromDb['extra_data']);
-  } catch (err) {
-    console.error('Error parsing OpenID configuration:', err);
+  } catch (error) {
+    console.error('Error parsing OpenID configuration');
+    debugSensitive('Error parsing OpenID configuration: %O', error);
     return { error: 'openid-setup-failed' };
   }
   let client;
   try {
     client = await setupOpenIdClient(configFromDb);
-  } catch (err) {
-    console.error('Error setting up OpenID client:', err);
+  } catch (error) {
+    console.error('Error setting up OpenID client');
+    debugSensitive('Error setting up OpenID client: %O', error);
     return { error: 'openid-setup-failed' };
   }
 
@@ -334,8 +363,9 @@ export async function loginWithOpenIdFinalize(body) {
     clearExpiredSessions();
 
     return { url: `${return_url}/openid-cb?token=${token}` };
-  } catch (err) {
-    console.error('OpenID grant failed:', err);
+  } catch (error) {
+    console.error('OpenID grant failed');
+    debugSensitive('OpenID grant failed: %O', error);
     return { error: 'openid-grant-failed' };
   }
 }
@@ -350,7 +380,8 @@ export function getServerHostname() {
       const openIdConfig = JSON.parse(auth.extra_data);
       return openIdConfig.server_hostname;
     } catch (error) {
-      console.error('Error parsing OpenID configuration:', error);
+      console.error('Error parsing OpenID configuration');
+      debugSensitive('Error parsing OpenID configuration: %O', error);
     }
   }
   return null;

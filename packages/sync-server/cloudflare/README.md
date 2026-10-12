@@ -92,9 +92,8 @@ re-enables OpenID on every start; delete the secret to stop that.
 Cloudflare Access can act as the OpenID provider (a SaaS application with
 OIDC, redirect URI `https://<your-domain>/openid/callback`). To switch back
 to password login, delete the OpenID secrets, deploy, and use **Settings >
-Authentication method** in the app. On a server that was set up with OpenID
-and never had a password, the password typed there becomes the server
-password (there is no shell to run the `disable-openid` script).
+Authentication method** in the app; that asks for the existing server
+password.
 
 `config.json` and `*_FILE` variables are not supported (there is no
 filesystem to read them from).
@@ -112,3 +111,6 @@ filesystem to read them from).
   sensible addition. Cloudflare Access is the simpler way to put a login in
   front of the server.
 - Importing data from an existing Node server.
+- Switching from OpenID to password login on a server that was set up with
+  OpenID and never had a password: the app asks for the existing server
+  password, and the `disable-openid` script needs a shell.

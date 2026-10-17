@@ -371,6 +371,13 @@
   },
   "overrides": [
     {
+      // CommonJS files that cannot use ESM imports.
+      "files": ["**/*.cjs", "packages/eslint-plugin-actual/lib/**/*.js"],
+      "rules": {
+        "typescript/no-var-requires": "off"
+      }
+    },
+    {
       "files": ["packages/desktop-electron/**/*"],
       "rules": {
         "react/rules-of-hooks": "off"
@@ -405,6 +412,7 @@
         "packages/api/migrations/*",
         "packages/loot-core/migrations/*",
         "packages/sync-server/src/app-gocardless/banks/*.ts",
+        "packages/sync-server/cloudflare/src/index.ts",
         "*.config.{ts,mts,mjs}"
       ],
       "rules": {

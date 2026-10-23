@@ -96,8 +96,12 @@
         "src/app.ts",
         "bin/**/*.js",
         "src/scripts/**/*.{js,ts}",
-        "src/app-*/app-*.{ts,js}"
-      ]
+        "src/app-*/app-*.{ts,js}",
+        "cloudflare/src/index.ts",
+        "src/db.workerd.js",
+        "src/storage/workerd.ts"
+      ],
+      "ignoreDependencies": ["cloudflare"]
     }
   }
 }

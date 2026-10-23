@@ -51,9 +51,8 @@ const validateSessionMiddleware = async (
 };
 
 const requestLoggerMiddleware = expressWinston.logger({
-  // A string msg is compiled with lodash's _.template (new Function), which
-  // Cloudflare Workers forbid. The line is formatted by printf below anyway.
-  // Keep this constant: function results containing `{{` get templated too.
+  // The formatter below builds the log line. A constant callback avoids
+  // template compilation for this message, which has no placeholders.
   msg: () => 'HTTP request',
   transports: [new winston.transports.Console()],
   requestWhitelist: ['method', 'path'],

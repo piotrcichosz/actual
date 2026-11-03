@@ -1,7 +1,7 @@
-import { getWorkerdRuntime } from '#workerd/runtime';
+import { getWorkerdRuntime } from './runtime';
 
 // Durable Object SQLite implementation of the WrappedDatabase interface from
-// ./db.js (better-sqlite3). Same synchronous API, with these differences
+// sync-server's src/db.js (better-sqlite3), substituted for `#db`. Same synchronous API, with these differences
 // papered over:
 // - BEGIN/COMMIT can't be run as SQL; transactions go through transactionSync
 //   (which nests as a savepoint, like better-sqlite3's transaction()).
@@ -36,7 +36,7 @@ export class WrappedDatabase {
    * instance, and a recreated instance in the same isolate can't use the old
    * one's.
    *
-   * @param {() => import('#workerd/runtime').DurableObjectStorageLike} getStorage
+   * @param {() => import('./runtime').DurableObjectStorageLike} getStorage
    */
   constructor(getStorage) {
     this.getStorage = getStorage;
@@ -82,7 +82,7 @@ export class WrappedDatabase {
 
   /**
    * @param {string} sql
-   * @param {(string | number | null | undefined)[]} params
+   * @param {(string | number | boolean | Uint8Array | null | undefined)[]} params
    */
   mutate(sql, params = []) {
     if (/^\s*(BEGIN|COMMIT|END|ROLLBACK)\b/i.test(sql)) {
@@ -91,9 +91,12 @@ export class WrappedDatabase {
       );
     }
     this.storage.sql.exec(sql, ...params.map(toBinding));
-    const { changes, insertId } = this.storage.sql
-      .exec('SELECT changes() AS changes, last_insert_rowid() AS insertId')
-      .one();
+    const { changes, insertId } =
+      /** @type {{ changes: number, insertId: number }} */ (
+        this.storage.sql
+          .exec('SELECT changes() AS changes, last_insert_rowid() AS insertId')
+          .one()
+      );
     return { changes, insertId };
   }
 

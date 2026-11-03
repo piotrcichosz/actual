@@ -1,0 +1,32 @@
+{
+  "name": "@actual-app/sync-server-cloudflare",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Actual sync server deployment for Cloudflare Workers",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "cf:build": "vite build",
+    "cf:dev": "yarn cf:build && wrangler dev -c dist/actual_sync_server/wrangler.json --persist-to .wrangler/state",
+    "cf:deploy": "yarn cf:build && wrangler deploy -c dist/actual_sync_server/wrangler.json",
+    "cf:types": "wrangler types -c wrangler.jsonc worker-configuration.d.ts",
+    "test": "vitest --run",
+    "typecheck": "tsgo -b"
+  },
+  "dependencies": {
+    "@actual-app/sync-server": "workspace:*",
+    "@hallaxius/argon2w": "0.0.2",
+    "@noble/hashes": "^2.0.0",
+    "bcryptjs": "^3.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1",
+    "@cloudflare/workers-types": "^5",
+    "@typescript/native-preview": "beta",
+    "argon2": "^0.45.1",
+    "bcrypt": "^6.0.0",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.4",
+    "wrangler": "^4"
+  }
+}

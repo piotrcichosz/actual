@@ -1,8 +1,8 @@
+import * as nativeHash from '@actual-app/sync-server/src/accounts/password-hash';
 import * as argon2 from 'argon2';
 import * as bcrypt from 'bcrypt';
 
-import * as nativeHash from './password-hash';
-import * as workerdHash from './password-hash.workerd';
+import * as workerdHash from './password-hash';
 
 describe('workerd password hashing', () => {
   it('hashes to an argon2id string and verifies the correct password', async () => {

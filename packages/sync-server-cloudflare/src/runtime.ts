@@ -1,11 +1,15 @@
-import type { SyncMessage, SyncResult } from '#storage/types';
+import type {
+  SyncMessage,
+  SyncResult,
+} from '@actual-app/sync-server/src/storage/types';
 
 // Handle to the Cloudflare Durable Object that is running the server. The
-// `workerd` variants of `#db` and `#storage` read storage and bindings from
-// here; the ActualServer Durable Object registers itself on construction.
+// Cloudflare replacements for sync-server's `#db` and `#storage` (./db.js,
+// ./storage.ts) read storage and bindings from here; the ActualServer
+// Durable Object registers itself on construction.
 //
-// The types below are the minimal slices of @cloudflare/workers-types this
-// package uses, so src/ keeps compiling against Node types.
+// The types below are the minimal slices of @cloudflare/workers-types that
+// those modules use.
 
 export type SqlStorageLike = {
   exec(

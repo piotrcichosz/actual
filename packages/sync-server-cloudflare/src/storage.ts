@@ -2,9 +2,13 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as NodeWebReadableStream } from 'node:stream/web';
 
-import { getWorkerdRuntime } from '#workerd/runtime';
+import type {
+  BlobStore,
+  MigrationStateStore,
+  SyncStore,
+} from '@actual-app/sync-server/src/storage/types';
 
-import type { BlobStore, MigrationStateStore, SyncStore } from './types';
+import { getWorkerdRuntime } from './runtime';
 
 // Cloudflare implementation of the storage seams:
 // - each sync group is its own SyncGroup Durable Object

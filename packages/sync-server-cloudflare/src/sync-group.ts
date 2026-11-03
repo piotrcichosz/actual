@@ -1,8 +1,8 @@
+import type { SyncMessage } from '@actual-app/sync-server/src/storage/types';
+import { messagesSql, syncGroup } from '@actual-app/sync-server/src/sync-core';
 import { DurableObject } from 'cloudflare:workers';
 
-import { WrappedDatabase } from '#db';
-import type { SyncMessage } from '#storage/types';
-import { messagesSql, syncGroup } from '#sync-core';
+import { WrappedDatabase } from './db';
 
 /**
  * One sync group's CRDT messages and merkle trie: the Durable Object

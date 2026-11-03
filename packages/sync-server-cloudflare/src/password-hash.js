@@ -4,7 +4,8 @@ import bcrypt from 'bcryptjs';
 
 // Password hashing for runtimes without native addons (Cloudflare Workers).
 // Produces and verifies the same PHC strings as the native `argon2` package
-// used by ./password-hash.js, so hashes are interchangeable.
+// used by sync-server's accounts/password-hash.ts, so hashes are
+// interchangeable.
 //
 // argon2w (WASM) caps memory at 32 MiB, so new hashes use m=19456,t=1
 // instead of m=47104,t=1 (below OWASP's m=19456,t=2, to keep CPU time per

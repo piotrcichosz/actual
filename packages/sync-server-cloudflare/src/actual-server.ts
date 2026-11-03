@@ -4,8 +4,8 @@ import argon2Wasm from '@hallaxius/argon2w/wasm';
 import { httpServerHandler } from 'cloudflare:node';
 import { DurableObject } from 'cloudflare:workers';
 
-import { setWorkerdRuntime } from '#workerd/runtime';
-import type { WorkerdEnv } from '#workerd/runtime';
+import { setWorkerdRuntime } from './runtime';
+import type { WorkerdEnv } from './runtime';
 
 const EXPRESS_PORT = 8080;
 
@@ -20,10 +20,12 @@ let handlerPromise: Promise<FetchHandler> | null = null;
  * before the app modules are imported.
  */
 async function startServer(): Promise<FetchHandler> {
-  const { run: runMigrations } = await import('#migrations');
+  const { run: runMigrations } =
+    await import('@actual-app/sync-server/src/migrations');
   await runMigrations();
 
-  const { createApp, setupOpenIdFromConfig } = await import('#create-app');
+  const { createApp, setupOpenIdFromConfig } =
+    await import('@actual-app/sync-server/src/create-app');
   await setupOpenIdFromConfig();
 
   const app = createApp();

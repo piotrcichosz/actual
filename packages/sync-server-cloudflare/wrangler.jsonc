@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "actual-sync-server",
   "main": "./src/index.ts",
   "compatibility_date": "2026-09-01",
@@ -15,7 +15,7 @@
   // run_worker_first is served straight from here, with the COOP/COEP
   // headers from its _headers file and index.html as the SPA fallback.
   "assets": {
-    "directory": "../../desktop-client/build",
+    "directory": "../desktop-client/build",
     "not_found_handling": "single-page-application",
     "run_worker_first": [
       "/account",

@@ -23,27 +23,28 @@ function removeNetlifyRedirects(): Plugin {
   };
 }
 
-// Select the Cloudflare implementations here so package.json imports keep
-// pointing to the Node defaults. Native modules and filesystem storage are
-// excluded from the Worker bundle.
+function src(file: string) {
+  return path.resolve(import.meta.dirname, 'src', file);
+}
+
+// Replace sync-server's platform modules (its package.json `imports`) with
+// the Cloudflare implementations in src/. Anchored so that e.g.
+// `#storage/types` still resolves to sync-server's own file.
 export default defineConfig({
   root: import.meta.dirname,
   resolve: {
-    alias: {
-      '#db': path.resolve(import.meta.dirname, '../src/db.workerd.js'),
-      '#storage': path.resolve(
-        import.meta.dirname,
-        '../src/storage/workerd.ts',
-      ),
-      '#password-hash': path.resolve(
-        import.meta.dirname,
-        '../src/accounts/password-hash.workerd.js',
-      ),
-    },
+    // These replace another package's private imports, which subpath
+    // imports in this package can't do.
+    // oxlint-disable-next-line actual/enforce-boundaries
+    alias: [
+      { find: /^#db$/, replacement: src('db.js') },
+      { find: /^#storage$/, replacement: src('storage.ts') },
+      { find: /^#password-hash$/, replacement: src('password-hash.js') },
+    ],
   },
   // The prebuilt web app (yarn build:browser) becomes the Worker's static
   // assets; the Cloudflare plugin ignores wrangler's assets.directory.
-  publicDir: path.resolve(import.meta.dirname, '../../desktop-client/build'),
+  publicDir: path.resolve(import.meta.dirname, '../desktop-client/build'),
   build: {
     outDir,
     emptyOutDir: true,

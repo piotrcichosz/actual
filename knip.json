@@ -96,11 +96,11 @@
         "src/app.ts",
         "bin/**/*.js",
         "src/scripts/**/*.{js,ts}",
-        "src/app-*/app-*.{ts,js}",
-        "cloudflare/src/index.ts",
-        "src/db.workerd.js",
-        "src/storage/workerd.ts"
-      ],
+        "src/app-*/app-*.{ts,js}"
+      ]
+    },
+    "packages/sync-server-cloudflare": {
+      "entry": ["src/db.js", "src/storage.ts", "src/password-hash.js"],
       "ignoreDependencies": ["cloudflare"]
     }
   }

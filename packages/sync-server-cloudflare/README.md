@@ -12,22 +12,25 @@ Cloudflare Workers, with no other infrastructure.
 | `.migrate` state file                 | `ActualServer` Durable Object KV storage         |
 | Static web build via `express.static` | Workers static assets (`_headers` for COOP/COEP) |
 
-Platform-specific code is selected by aliases in `cloudflare/vite.config.mts`
-for `#db`, `#storage`, and `#password-hash`. Package imports keep pointing to
-the Node defaults.
+This package doesn't change `packages/sync-server`. It imports the server's
+modules from `@actual-app/sync-server/src/...`, and `vite.config.mts` swaps
+sync-server's platform modules (`#db`, `#storage`, `#password-hash`) for the
+Cloudflare implementations in `src/`. sync-server's own `imports` keep
+pointing to the Node versions.
 
 ## Branch structure
 
 `server-portability` contains the vendor-neutral refactor intended for upstream:
 app creation, storage and password-hashing boundaries, and shared sync logic.
-`cloudflare-workers-adapter` builds on that branch and owns the Cloudflare
-implementations, dependencies, deployment configuration, and compatibility changes.
+`cloudflare-workers-adapter` builds on that branch and adds only this package
+(plus repo tooling config); it leaves `packages/sync-server` untouched. Any
+change sync-server needs to support it belongs in `server-portability`.
 The original `cloudflare-workers` branch is preserved for reference.
 
 Rebase the adapter branch onto `server-portability` as the upstream refactor
 evolves. Once that refactor is merged, rebase onto the upstream commit containing
 it. A separate deployment repository can later build against a pinned Actual
-revision and carry the adapter files and build aliases from this branch.
+revision and carry this package.
 
 Password hashing uses argon2id through
 [argon2w](https://github.com/Hallaxius/argon2w) (WASM). It caps memory at
@@ -53,19 +56,20 @@ Run from the repository root.
 # Build the web app (served as static assets)
 yarn build:browser
 
-# Build the Worker (output in cloudflare/dist)
-yarn workspace @actual-app/sync-server cf:build
+# Build the Worker (output in dist/)
+yarn workspace @actual-app/sync-server-cloudflare cf:build
 
 # Run locally on http://localhost:8787 with simulated Durable Objects and R2
-# (local-only ACTUAL_* settings go in cloudflare/.dev.vars, which is gitignored)
-yarn workspace @actual-app/sync-server cf:dev
+# (local-only ACTUAL_* settings go in .dev.vars, which is gitignored)
+yarn workspace @actual-app/sync-server-cloudflare cf:dev
 
-# Typecheck the Worker entry points / regenerate binding types
-yarn workspace @actual-app/sync-server cf:typecheck
-yarn workspace @actual-app/sync-server cf:types
+# Typecheck / test / regenerate binding types
+yarn workspace @actual-app/sync-server-cloudflare typecheck
+yarn workspace @actual-app/sync-server-cloudflare test
+yarn workspace @actual-app/sync-server-cloudflare cf:types
 ```
 
-`cf:types` also picks up variable names from `cloudflare/.dev.vars`; don't
+`cf:types` also picks up variable names from `.dev.vars`; don't
 commit those additions to `worker-configuration.d.ts`.
 
 ## Deploying
@@ -74,7 +78,7 @@ commit those additions to `worker-configuration.d.ts`.
 npx wrangler login
 npx wrangler r2 bucket create actual-user-files
 yarn build:browser
-yarn workspace @actual-app/sync-server cf:deploy
+yarn workspace @actual-app/sync-server-cloudflare cf:deploy
 ```
 
 `workers_dev` and `preview_urls` are off, so the first deploy has no public
@@ -93,7 +97,7 @@ settings in `vars` in `wrangler.jsonc` and secrets (for example
 `ACTUAL_OPENID_CLIENT_SECRET`) in Worker secrets:
 
 ```bash
-npx wrangler secret put ACTUAL_OPENID_CLIENT_SECRET -c packages/sync-server/cloudflare/dist/actual_sync_server/wrangler.json
+npx wrangler secret put ACTUAL_OPENID_CLIENT_SECRET -c packages/sync-server-cloudflare/dist/actual_sync_server/wrangler.json
 ```
 
 Deployment-specific settings you'd rather not commit (such as
@@ -105,9 +109,9 @@ re-enables OpenID on every start; delete the secret to stop that.
 Cloudflare Access can act as the OpenID provider (a SaaS application with
 OIDC, redirect URI `https://<your-domain>/openid/callback`). To switch back
 to password login, delete the OpenID secrets, deploy, and use **Settings >
-Authentication method** in the app. On a server that was set up with OpenID
-and never had a password, the password typed there becomes the server
-password (there is no shell to run the `disable-openid` script).
+Authentication method** in the app. That requires the server to have a
+password: a server set up with OpenID that never had one can't switch back
+yet (there is no shell to run the `disable-openid` script).
 
 `config.json` and `*_FILE` variables are not supported (there is no
 filesystem to read them from).

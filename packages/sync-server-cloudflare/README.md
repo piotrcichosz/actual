@@ -25,7 +25,8 @@ app creation, storage and password-hashing boundaries, and shared sync logic.
 `cloudflare-workers-adapter` builds on that branch and adds only this package
 (plus repo tooling config); it leaves `packages/sync-server` untouched. Any
 change sync-server needs to support it belongs in `server-portability`.
-The original `cloudflare-workers` branch is preserved for reference.
+The original `cloudflare-workers` branch is retired; its last commit is kept
+as the `archive/cloudflare-workers` tag.
 
 Rebase the adapter branch onto `server-portability` as the upstream refactor
 evolves. Once that refactor is merged, rebase onto the upstream commit containing

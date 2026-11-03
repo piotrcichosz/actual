@@ -12,8 +12,8 @@ import { parseAllowedNetwork } from './util/ssrf';
 const debug = createDebug('actual:config');
 const debugSensitive = createDebug('actual-sensitive:config');
 
-// import.meta.url is undefined in Cloudflare Workers bundles, where there is
-// no project directory on disk.
+// import.meta.url can be undefined when the server is bundled for a runtime
+// without a project directory on disk.
 const moduleUrl = import.meta.url;
 const __dirname = moduleUrl ? path.dirname(fileURLToPath(moduleUrl)) : '/';
 
@@ -34,8 +34,8 @@ function resolveWebBuildPath() {
       'build',
     );
   } catch {
-    // Not resolvable when the web build is served separately (e.g. Cloudflare
-    // Workers static assets).
+    // Not resolvable when the web app isn't installed alongside the server,
+    // e.g. when its build is served separately.
     return '';
   }
 }

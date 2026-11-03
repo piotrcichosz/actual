@@ -8,15 +8,22 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * Derives publishConfig.imports from imports by:
  * 1. Prepending ./build/ to each value path
  * 2. Replacing .ts/.tsx extensions with .js
+ *
+ * Conditional targets (e.g. `{ "workerd": ..., "default": ... }`) publish
+ * their `default` path, since the published build targets Node.
  */
 export function derivePublishImports(
   imports: Record<string, string | object>,
 ): Record<string, string> {
   const result: Record<string, string> = {};
-  for (const [key, value] of Object.entries(imports)) {
+  for (const [key, target] of Object.entries(imports)) {
+    const value =
+      typeof target === 'string'
+        ? target
+        : (target as Record<string, unknown>).default;
     if (typeof value !== 'string') {
       throw new Error(
-        `Unsupported imports target for "${key}". Expected a string path.`,
+        `Unsupported imports target for "${key}". Expected a string path or a conditional target with a string "default".`,
       );
     }
     const withBuildPrefix = value.replace(/^\.\//, './build/');

@@ -27,6 +27,7 @@ import {
   validateUploadedFile,
 } from './app-sync/validation';
 import { config } from './load-config';
+import { SecretName, secretsService } from './services/secrets-service';
 import * as UserService from './services/user-service';
 import {
   errorMiddleware,
@@ -183,7 +184,12 @@ app.post('/sync', async (req, res): Promise<void> => {
     return;
   }
 
-  const { trie, newMessages } = await syncStore.sync(messages, since, groupId);
+  const result = await syncStore.sync(messages, since, groupId);
+  if ('error' in result) {
+    res.status(400).send(result.error);
+    return;
+  }
+  const { trie, newMessages } = result;
 
   const responsePb = create(SyncResponseSchema, {
     merkle: JSON.stringify(trie),
@@ -544,7 +550,8 @@ app.post('/delete-user-file', (req, res) => {
     return;
   }
 
-  const filesService = new FilesService(getAccountDb());
+  const accountDb = getAccountDb();
+  const filesService = new FilesService(accountDb);
   const file = verifyFileExists(fileId, filesService, res, 'file-not-found');
   if (!file) {
     return;
@@ -557,7 +564,12 @@ app.post('/delete-user-file', (req, res) => {
     return;
   }
 
-  filesService.update(file.id, new FileUpdate({ deleted: true }));
+  accountDb.transaction(() => {
+    filesService.update(file.id, new FileUpdate({ deleted: true }));
+    for (const name of Object.values(SecretName)) {
+      secretsService.reset(name, file.id);
+    }
+  });
 
   res.send(OK_RESPONSE);
 });

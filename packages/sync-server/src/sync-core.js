@@ -8,6 +8,9 @@ import messagesSql from './sql/messages.sql?raw';
 
 export { messagesSql };
 
+// Matches the client's Timestamp maxDrift; later messages break sync on other devices
+const MAX_FUTURE_DRIFT_MS = 5 * 60 * 1000;
+
 /**
  * @typedef {{ timestamp: string, isEncrypted: boolean, content: Uint8Array }} SyncMessage
  */
@@ -26,7 +29,13 @@ function addMessages(db, messages) {
         );
 
         if (info.changes > 0) {
-          trie = merkle.insert(trie, Timestamp.parse(msg.timestamp));
+          const timestamp = Timestamp.parse(msg.timestamp);
+          const error = getTimestampError(timestamp);
+          if (error) {
+            // Throwing rolls back the transaction
+            throw Object.assign(new Error(error), { rejectedReason: error });
+          }
+          trie = merkle.insert(trie, timestamp);
         }
       }
     }
@@ -44,6 +53,16 @@ function addMessages(db, messages) {
   return returnValue;
 }
 
+function getTimestampError(timestamp) {
+  if (!timestamp) {
+    return 'invalid-timestamp';
+  }
+  if (timestamp.millis() - Date.now() > MAX_FUTURE_DRIFT_MS) {
+    return 'clock-drift';
+  }
+  return null;
+}
+
 function getMerkle(db) {
   const rows = db.all('SELECT * FROM messages_merkles');
 
@@ -58,12 +77,13 @@ function getMerkle(db) {
 
 /**
  * Stores `messages` in the group db and returns the updated merkle trie plus
- * every message newer than `since`. Inputs and outputs are plain objects so
+ * every message newer than `since`, or an `error` (and no changes) when a
+ * message's timestamp is rejected. Inputs and outputs are plain objects so
  * they can cross a Durable Object RPC boundary.
  *
  * @param {SyncMessage[]} messages
  * @param {string} since
- * @returns {{ trie: object, newMessages: SyncMessage[] }}
+ * @returns {{ trie: object, newMessages: SyncMessage[] } | { error: 'invalid-timestamp' | 'clock-drift' }}
  */
 export function syncGroup(db, messages, since) {
   const newMessages = db.all(
@@ -73,7 +93,15 @@ export function syncGroup(db, messages, since) {
     [since],
   );
 
-  const trie = addMessages(db, messages);
+  let trie;
+  try {
+    trie = addMessages(db, messages);
+  } catch (e) {
+    if (e.rejectedReason) {
+      return { error: e.rejectedReason };
+    }
+    throw e;
+  }
 
   return {
     trie,

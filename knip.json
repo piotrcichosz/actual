@@ -98,6 +98,10 @@
         "src/scripts/**/*.{js,ts}",
         "src/app-*/app-*.{ts,js}"
       ]
+    },
+    "packages/sync-server-cloudflare": {
+      "entry": ["src/db.js", "src/storage.ts", "src/password-hash.js"],
+      "ignoreDependencies": ["cloudflare"]
     }
   }
 }

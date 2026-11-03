@@ -1,0 +1,16 @@
+{
+  // Kept apart from the sync-server project so Workers globals don't leak
+  // into the Node code. sync-server's sources are type-checked through its
+  // project reference.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    "lib": ["ES2022"],
+    "types": ["./worker-configuration.d.ts", "vite/client", "vitest/globals"],
+    "resolveJsonModule": true
+  },
+  "references": [{ "path": "../sync-server" }],
+  "include": ["src/**/*", "worker-configuration.d.ts", "*.config.mts"],
+  "exclude": ["node_modules", "dist"]
+}
